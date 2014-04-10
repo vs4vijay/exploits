@@ -92,7 +92,6 @@ def recvall(s, length, timeout=5):
 def recvmsg(s):
 	hdr = recvall(s, 5)
 	if hdr is None:
-		print 'Unexpected EOF receiving record header - server closed connection'
 		return None, None, None
 	typ, ver, ln = struct.unpack('>BHH', hdr)
 	pay = recvall(s, ln, 10)
@@ -100,11 +99,13 @@ def recvmsg(s):
 		print 'Unexpected EOF receiving record payload - server closed connection'
 		return None, None, None
 	print ' ... received message: type = %d, ver = %04x, length = %d' % (typ, ver, len(pay))
+        sys.stdout.flush()
 	return typ, ver, pay
 
 def hit_hb(s, dumpf, host, quiet):
 	while True:
 		typ, ver, pay = recvmsg(s)
+
 		if typ is None:
 			print 'No heartbeat response received from '+host+', server likely not vulnerable'
 			return False
@@ -138,15 +139,32 @@ def tls(s, quiet):
 	if not quiet: print 'Waiting for Server Hello...'
 	sys.stdout.flush()
 
-def parseresp(s):
+def parseresp(s, quiet):
 	while True:
 		typ, ver, pay = recvmsg(s)
+
 		if typ == None:
-			print 'Server closed connection without sending Server Hello.'
+			print 'Server closed connection without sending Server Hello Done.'
+			sys.stdout.flush()                        
 			return 0
-		# Look for server hello done message.
-		if typ == 22 and ord(pay[0]) == 0x0E:
-			return ver
+
+                if typ == 22:
+                        index = 0
+                        while index < len(pay): 
+                                if not quiet: print 'Message Type is 0x%02X' % ord(pay[index])
+                                sys.stdout.flush()
+                        
+                                # Look for server hello done message.
+                                if ord(pay[index]) == 0x0E:
+                                        if not quiet: print 'Server sent server hello done'
+                                        sys.stdout.flush()
+                                        return ver
+
+
+                                skip = (ord(pay[index+1]) * 2**16) + ( ord(pay[index+2]) * 2**8) + (ord(pay[index+3]))
+                                index += 4 + skip
+                                #print 'skip = %d  index = %d' % (skip, index)
+                                
 
 def check(host, port, dumpf, quiet, starttls):
 	response = False
@@ -176,7 +194,7 @@ def check(host, port, dumpf, quiet, starttls):
 		s = connect(host, port, quiet)
 		tls(s,quiet)
 
-	version = parseresp(s)
+	version = parseresp(s, quiet)
 
 	if version == 0:
 		if not quiet: print "Got an error while parsing the response, bailing ..."
