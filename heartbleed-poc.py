@@ -64,7 +64,12 @@ def hexdump(s, dumpf, quiet):
 	for b in xrange(0, len(s), 16):
 		lin = [c for c in s[b : b + 16]]
 		hxdat = ' '.join('%02X' % ord(c) for c in lin)
-		pdat = ''.join((c if 32 <= ord(c) <= 126 else '.' )for c in lin)
+               pdat = ''
+               for c in lin:
+                       if (32 <= ord(c) <= 126):
+                               pdat.join(c)
+                       else:
+                               pdat.join('.')
 		print '  %04x: %-48s %s' % (b, hxdat, pdat)
 	print
 
